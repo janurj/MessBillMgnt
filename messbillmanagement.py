@@ -1,83 +1,177 @@
-  import mysql.connector
-from mysql.connector import errorcode
+import mysql.connector as mysql
 
-# Function to connect to the MySQL database
-def connect_to_database():
-    try:
-        connection = mysql.connector.connect(
-            host="localhost",
-            user="root",
-            password="Jananir40@",
-            database="messbillmanagement"
-        )
-        return connection
-    except mysql.connector.Error as err:
-        if err.errno == errorcode.ER_ACCESS_DENIED_ERROR:
-            print("Error: Access denied. Check your credentials.")
-        elif err.errno == errorcode.ER_BAD_DB_ERROR:
-            print("Error: Database does not exist.")
-        else:
-            print(f"Error: {err}")
-        return None
+from datetime import datetime
 
-# Function to record a profit or loss entry
-def record_profit_loss(connection):
-    cursor = connection.cursor()
+from decimal import Decimal
 
-    # Get input from the user
-    transaction_date = input("Enter transaction date (YYYY-MM-DD): ")
-    description = input("Enter description: ")
-    amount = float(input("Enter amount: "))  # Convert input to float
-    entry_type = input("Enter type (Income or Expense): ").capitalize()  # Convert input to title case
+# Database connection
 
-    # Insert data into the ProfitLoss table
-    insert_query = """
-    INSERT INTO ProfitLoss (transaction_date, description, amount, type)
-    VALUES (%s, %s, %s, %s)
-    """
+db = mysql.connect(
 
-    data = (transaction_date, description, amount, entry_type)
+host="localhost",
 
-    try:
-        cursor.execute(insert_query, data)
-        connection.commit()
-        print("Entry recorded successfully.")
-    except mysql.connector.Error as err:
-        print(f"Error: {err}")
-        connection.rollback()
-    finally:
-        cursor.close()
+user="root",
 
-# Function to calculate and display total profit and total loss
-def calculate_and_display_totals(connection):
-    cursor = connection.cursor()
+passwd="Jananir40@",
 
-    # Calculate total profit
-    cursor.execute("SELECT SUM(amount) FROM ProfitLoss WHERE type = 'Profit'")
-    total_profit = cursor.fetchone()[0] or 0
+database="messbill"
 
-    # Calculate total loss
-    cursor.execute("SELECT SUM(amount) FROM ProfitLoss WHERE type = 'Loss'")
-    total_loss = cursor.fetchone()[0] or 0
+)
 
-    print(f"Total Profit: {total_profit}")
-    print(f"Total Loss: {total_loss}")
+cursor = db.cursor()
 
-    cursor.close()
+# Update bill function (your existing code)
 
-# Main function
-def main():
-    connection = connect_to_database()
+def update_bill(fingerprint_id):
 
-    if connection:
-        # Example: Record a profit or loss entry
-        record_profit_loss(connection)
+cursor.execute("SELECT * FROM stud_details where fp_id=%s", (fingerprint_id,))
 
-        # Calculate and display totals
-        calculate_and_display_totals(connection)
+person = cursor.fetchone()
 
-        # Close the database connection
-        connection.close()
+print(person)
 
-if __name__ == "__main__":
-    main()
+if person is None:
+
+print("Warning: Fingerprint ID not found in stud_details table.")
+
+return
+
+if person:
+
+today = datetime.today()
+
+time_str = datetime.now().time()
+
+day = today.strftime("%A")
+
+meal = get_meal_type(time_str)
+
+rate = get_meal_rate(day)
+
+cursor.execute("SELECT breakfast,lunch,snacks,dinner,tot_amt FROM stud_details WHERE fp_id=%s",
+(fingerprint_id,))
+
+tot_amt = cursor.fetchone()
+
+new_amt = Decimal('0.0')
+
+break_amt=Decimal('0.0')
+
+lunch_amt=Decimal('0.0')
+
+snacks_amt=Decimal('0.0')
+
+dinner_amt=Decimal('0.0')
+
+if tot_amt:
+
+new_amt = Decimal(str(tot_amt[4]))
+
+if break_amt:
+
+break_amt=Decimal(str(tot_amt[0]))
+
+if lunch_amt:
+
+lunch_amt=Decimal(str(tot_amt[1]))
+
+if snacks_amt:
+
+snacks_amt=Decimal(str(tot_amt[2]))
+
+if dinner_amt:
+
+break_amt=Decimal(str(tot_amt[3]))
+
+rate = get_meal_rate(day)
+
+if meal == 'breakfast':
+
+break_amt+= Decimal(str(rate[1]))
+
+cursor.execute("UPDATE stud_details SET breakfast=%s WHERE fp_id=%s",(break_amt,fingerprint_id))
+
+elif meal == 'lunch':
+
+lunch_amt += Decimal(str(rate[2]))
+
+cursor.execute("UPDATE stud_details SET lunch=%s WHERE fp_id=%s",(lunch_amt,fingerprint_id))
+
+elif meal == 'snacks':
+
+snacks_amt += Decimal(str(rate[3]))
+
+cursor.execute("UPDATE stud_details SET snacks=%s WHERE fp_id=%s",(snacks_amt,fingerprint_id))
+
+else:
+
+dinner_amt += Decimal(str(rate[4]))
+
+cursor.execute("UPDATE stud_details SET dinner=%s WHERE fp_id=%s",(dinner_amt,fingerprint_id))
+
+print(new_amt)
+
+print(meal)
+
+print(time_str, day)
+
+cursor.execute("UPDATE stud_details SET entry=%s, curr_day=%s where fp_id=%s", (time_str, day, fingerprint_id))
+
+cursor.execute("UPDATE stud_details SET tot_amt=(SELECT SUM(breakfast+lunch+snacks+dinner)as new_amt)
+WHERE fp_id=%s", (fingerprint_id,))
+
+cursor.execute("SELECT * FROM meals_rates")
+
+meals = cursor.fetchall()
+
+for m in meals:
+
+print(m)
+
+print()
+
+cursor.execute("SELECT * FROM stud_details")
+
+records = cursor.fetchall()
+
+for record in records:
+
+print(record)
+
+db.commit()
+
+# Get meal type function (your existing code)
+
+def get_meal_type(time_str):
+
+if time_str < datetime.strptime("12:00:00", "%H:%M:%S").time():
+
+return "breakfast"
+
+elif time_str < datetime.strptime("17:00:00", "%H:%M:%S").time():
+
+return "lunch"
+
+elif time_str < datetime.strptime("18:30:00", "%H:%M:%S").time():
+
+return "snacks"
+
+else:
+
+return "dinner"
+
+# Get meal rate function (your existing code)
+
+def get_meal_rate(day):
+
+cursor.execute("SELECT * FROM meals_rates WHERE days=%s", (day,))
+
+return cursor.fetchone()
+
+# User input for fingerprint ID
+
+fp_id = int(input("Enter Fingerprint ID: "))
+
+# Update bill and perform visualizations
+
+update_bill(fp_id)
